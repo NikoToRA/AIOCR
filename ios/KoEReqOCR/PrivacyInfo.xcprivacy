@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "privacy": {
+    "tracking": false,
+    "dataCategories": [
+      {
+        "category": "deviceID",
+        "collected": false
+      },
+      {
+        "category": "contacts",
+        "collected": false
+      },
+      {
+        "category": "health",
+        "collected": false
+      },
+      {
+        "category": "sensitiveInfo",
+        "collected": false
+      }
+    ],
+    "purposes": []
+  }
+}
+
