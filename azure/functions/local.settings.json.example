@@ -1,0 +1,18 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+
+    "AZURE_STORAGE_ACCOUNT": "<storage_account_name>",
+    "AZURE_STORAGE_KEY": "<storage_account_key>",
+    "AZURE_STORAGE_CONTAINER": "raw",
+
+    "AZURE_DI_ENDPOINT": "https://<your-di>.cognitiveservices.azure.com/",
+    "AZURE_DI_KEY": "<document_intelligence_key>",
+
+    "AZURE_OPENAI_ENDPOINT": "https://<your-oai>.openai.azure.com/",
+    "AZURE_OPENAI_KEY": "<azure_openai_key>"
+  }
+}
+

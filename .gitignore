@@ -1,0 +1,16 @@
+# Xcode
+*.xcuserstate
+*.xcuserdatad
+.DS_Store
+
+# Azure credentials and debug docs
+AZURE_ERROR_ANALYSIS.md
+AZURE_SETUP.md
+DEBUG_GUIDE.md
+local.settings.json
+
+# Azure Functions
+azure/functions/.python_packages/
+
+# Temporary files
+*.md~

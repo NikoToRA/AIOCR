@@ -25,6 +25,7 @@
 		8B757E4E2E89807400B2471C /* Protocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B757E2D2E89807400B2471C /* Protocols.swift */; };
 		8B757E4F2E89807400B2471C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B757E3B2E89807400B2471C /* SettingsView.swift */; };
 		8B757E502E89807400B2471C /* DocumentTypeMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B757E352E89807400B2471C /* DocumentTypeMenuView.swift */; };
+		8B757E522E89807400B2471C /* AnalysisViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B757E512E89807400B2471C /* AnalysisViewModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,6 +59,7 @@
 		8B757E2C2E89807400B2471C /* LocalStorageServiceImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStorageServiceImpl.swift; sourceTree = "<group>"; };
 		8B757E2D2E89807400B2471C /* Protocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Protocols.swift; sourceTree = "<group>"; };
 		8B757E2F2E89807400B2471C /* AuditLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuditLogger.swift; sourceTree = "<group>"; };
+		8B757E512E89807400B2471C /* AnalysisViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisViewModel.swift; sourceTree = "<group>"; };
 		8B757E322E89807400B2471C /* CameraSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraSession.swift; sourceTree = "<group>"; };
 		8B757E332E89807400B2471C /* CameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
 		8B757E352E89807400B2471C /* DocumentTypeMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentTypeMenuView.swift; sourceTree = "<group>"; };
@@ -73,6 +75,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				ContentView.swift,
+				Info.plist,
 				KoEReqOCRApp.swift,
 			);
 			target = 8B757D0D2E891C0B00B2471C /* KoEReqOCR */;
@@ -159,6 +162,7 @@
 		8B757E272E89807400B2471C /* Business */ = {
 			isa = PBXGroup;
 			children = (
+				8B757E512E89807400B2471C /* AnalysisViewModel.swift */,
 				8B757E242E89807400B2471C /* DocumentProcessor.swift */,
 				8B757E252E89807400B2471C /* PromptManager.swift */,
 				8B757E262E89807400B2471C /* SessionManager.swift */,
@@ -395,6 +399,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8B757E522E89807400B2471C /* AnalysisViewModel.swift in Sources */,
 				8B757E3F2E89807400B2471C /* DocumentProcessor.swift in Sources */,
 				8B757E402E89807400B2471C /* LocalStorageServiceImpl.swift in Sources */,
 				8B757E412E89807400B2471C /* SessionManager.swift in Sources */,
@@ -574,7 +579,8 @@
 				DEVELOPMENT_TEAM = 9YVVNPFVMW;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "KoEReqOCR/Info.plist";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -614,7 +620,8 @@
 				DEVELOPMENT_TEAM = 9YVVNPFVMW;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "KoEReqOCR/Info.plist";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;

@@ -13,13 +13,13 @@ import UIKit
 struct CameraView: View {
     @State private var camera = SimpleCamera()
     @State private var capturedCount = 0
-    @State private var showTypes = false
     @State private var showResult = false
     @State private var resultText = ""
     @State private var alert: String?
+    @State private var showAccordion = false
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottom) {
             CameraPreviewLayer(camera: camera)
                 .ignoresSafeArea()
 
@@ -29,53 +29,66 @@ struct CameraView: View {
                        height: UIScreen.main.bounds.height * 0.45)
                 .blendMode(.difference)
                 .padding(.top, 80)
+                .allowsHitTesting(false)
 
-            VStack {
+            // 撮影済み枚数（下段中央の少し上に表示）
+            if capturedCount > 0 {
+                Text("\(capturedCount)枚撮影済み")
+                    .font(.subheadline)
+                    .foregroundColor(.white)
+                    .padding(.bottom, 140)
+                    .transition(.opacity)
+            }
+
+            // 下段中央：シャッターボタンのみ
+            HStack {
                 Spacer()
-                VStack(spacing: 12) {
-                    Text(capturedCount > 0 ? "\(capturedCount)枚撮影済み" : "")
-                        .font(.subheadline)
-                        .foregroundColor(.white)
-
-                    HStack(spacing: 24) {
-                        Button {
-                            if capturedCount == 0 { alert = "写真を撮影してください" }
-                            else { showTypes = true }
-                        } label: {
-                            Text("AIでテキスト化")
-                                .bold()
-                                .padding(.horizontal, 16).padding(.vertical, 10)
-                                .background(.ultraThinMaterial, in: Capsule())
-                        }
-
-                        Button(action: shutter) {
-                            ZStack {
-                                Circle().fill(Color.white.opacity(0.2)).frame(width: 68, height: 68)
-                                Circle().fill(Color.white).frame(width: 56, height: 56)
-                            }
-                        }
-                    }
-                    .padding(.bottom, 24)
-                }
-            }
-            .ignoresSafeArea(edges: .bottom)
-        }
-        .sheet(isPresented: $showTypes) {
-            VStack(spacing: 16) {
-                Text("文書タイプを選択").font(.headline)
-                HStack(spacing: 12) {
-                    ForEach(["紹介状","お薬手帳","一般テキスト"], id: \.self) { t in
-                        Button(t) {
-                            resultText = simpleAnalyze()
-                            showTypes = false
-                            showResult = true
-                        }.buttonStyle(.bordered)
+                Button(action: shutter) {
+                    ZStack {
+                        Circle().fill(Color.white.opacity(0.2)).frame(width: 76, height: 76)
+                        Circle().fill(Color.white).frame(width: 64, height: 64)
                     }
                 }
-                .padding()
+                .accessibilityLabel("写真を撮影")
+                Spacer()
             }
-            .presentationDetents([.medium])
+            .padding(.bottom, 40)
+
+            // 右下：AI解析フローティング + アコーディオン
+            VStack(alignment: .trailing, spacing: 10) {
+                if showAccordion {
+                    accordionButton(title: "紹介状") { selectTypeAndAnalyze("紹介状") }
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                    accordionButton(title: "お薬手帳") { selectTypeAndAnalyze("お薬手帳") }
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                    accordionButton(title: "一般テキスト") { selectTypeAndAnalyze("一般テキスト") }
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+
+                Button {
+                    if capturedCount == 0 {
+                        alert = "写真を撮影してください"
+                    } else {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            showAccordion.toggle()
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: showAccordion ? "xmark" : "wand.and.stars")
+                            .font(.headline)
+                        Text(showAccordion ? "閉じる" : "AI解析")
+                            .font(.headline).bold()
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 12)
+                    .background(.ultraThinMaterial, in: Capsule())
+                }
+                .accessibilityLabel("AI解析メニュー")
+            }
+            .padding(.trailing, 16)
+            .padding(.bottom, 24)
         }
+        // シートはAIメニューに置き換えたため削除
         .sheet(isPresented: $showResult) {
             NavigationStack {
                 VStack(alignment: .leading, spacing: 12) {
@@ -113,9 +126,11 @@ struct CameraView: View {
         }
     }
 
-    private func simpleAnalyze() -> String {
+    private func selectTypeAndAnalyze(_ type: String) {
         // デモ用: 実画像は使わずダミーを返す
-        return "サンプルOCRテキスト\n（ここにAzure連携の結果が入ります）"
+        resultText = "[\(type)]\nサンプルOCRテキスト\n（ここにAzure連携の結果が入ります）"
+        showResult = true
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { showAccordion = false }
     }
 }
 
@@ -173,6 +188,22 @@ private final class SimpleCamera: NSObject {
             completion(img)
         }
     }
+}
+
+// MARK: - UI Parts
+private func accordionButton(title: String, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+        Text(title)
+            .font(.subheadline).bold()
+            .foregroundColor(.white)
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(Color.blue.opacity(0.9))
+                    .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 4)
+            )
+    }
+    .accessibilityLabel("文書タイプ \(title)")
 }
 
 #Preview { CameraView() }

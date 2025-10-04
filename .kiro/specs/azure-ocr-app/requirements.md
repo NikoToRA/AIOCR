@@ -1,166 +1,315 @@
-# 要件定義書
+# 要件定義書（Software Requirements Specification / SRS）
 
-## 概要
+版: v1.0  最終更新: 2025-09-28
 
-KoEReq OCR (Azure Edition)は、医療文書（お薬手帳、紹介状、リハビリチェックリスト）を撮影し、Azure Document Intelligence（DI）を使用してOCR解析を行うiOS/SwiftUIアプリケーションです。アプリ起動時に即座にカメラが起動し、撮影後に文書タイプを選択してAI解析を実行します。解析結果のテキストはユーザーが編集可能で、確認後にQRコード生成とセッション保存を行います。カメラ画面の設定から独自の文書タイプとプロンプトを管理できます。App StoreとApple Business Manager（ABM）の両方での配布に対応し、IAP（In-App Purchase）サブスクリプションモデルを採用します。
+- 対象アプリ: KoEReq OCR (Azure Edition)
+- 対象プラットフォーム: iOS 17+（実機 18.5 検証）
+- 開発スタック: SwiftUI, AVFoundation, Azure Functions + Azure Document Intelligence + Azure OpenAI（後段）
+- リポジトリ構成（実装本体）:
+  - `ios/KoEReqOCR/Sources/KoEReqOCR/KoEReqOCR.xcodeproj`
+  - `ios/KoEReqOCR/Sources/{App, Core, Features}`
+  - 仕様・設計: `.kiro/specs/azure-ocr-app/*`
 
-## 要件
+---
 
-### 要件1: カメラファースト起動機能
+## 1. 概要 / 目的
 
-**ユーザーストーリー:** ユーザーとして、アプリを開いたら即座に撮影を開始したいので、アプリ起動時にカメラ画面が表示される。
+医療文書（紹介状/お薬手帳/一般テキスト/オリジナル）をスマホカメラで撮影し、AIでテキスト化・編集・QR化・保存するアプリ。MVPはローカル動作（スタブ）で安定化し、その後 Azure 連携に差し替える。
 
-#### 受入基準
+- アプリの最上位ゴール
+  - 起動直後カメラ（ガイド・歯車・AIボタン）
+  - 連続撮影→文書タイプ選択（円形）→AI解析→結果編集→QR生成→保存（ローカル/クラウド）
+  - 設定からオリジナル文書タイプ（カスタムプロンプト）とストレージ履歴を管理
 
-1. WHEN ユーザーがアプリを起動する THEN システムは即座にカメラ画面を表示する SHALL
-2. WHEN カメラ画面が表示される THEN システムは撮影ガイド枠を表示する SHALL
-3. WHEN カメラ画面が表示される THEN システムは右上に設定ボタン（⚙️）を配置する SHALL
-4. WHEN ユーザーがシャッターを押す THEN システムは撮影画像をプレビュー表示する SHALL
-5. WHEN カメラ画面が表示される THEN システムは「AIでテキスト化」ボタンを配置する SHALL
+---
 
-### 要件2: 設定画面機能
+## 2. スコープ
 
-**ユーザーストーリー:** ユーザーとして、オリジナル文書タイプの管理と保存済みデータの確認を行いたいので、設定画面から両方の機能にアクセスできる。
+- In-scope（MVP→本実装）
+  - カメラ撮影（連続）/ 撮影数表示 / 撮り直し
+  - 文書タイプ選択（円形 UI + オリジナル文書チップ）
+  - 解析結果の編集 / QR生成 / セッション保存（ローカル）
+  - 設定（オリジナル文書編集、ストレージ確認）
+  - 監査ログ（JSONL + コンソール DEBUG）
+  - Azure連携（Blob/DI/OpenAI）に差し替え可能なサービス層
 
-#### 受入基準
+- Out-of-scope（初期）
+  - 多言語 UI、詳細なアクセシビリティ設定
+  - 高度なレイアウト認識（表/チェックボックスの完全抽出）
+  - 組織的 SSO、MDM 専用設定
+  - バックグラウンドアップロード/プッシュ通知
 
-1. WHEN ユーザーが設定ボタン（⚙️）を押す THEN システムは設定画面を表示する SHALL
-2. WHEN 設定画面が表示される THEN システムは「オリジナル文書編集」と「ストレージ確認」の2つのメニューを提供する SHALL
-3. WHEN 「オリジナル文書編集」が選択される THEN システムは既存のオリジナル文書タイプ一覧を表示する SHALL
-4. WHEN オリジナル文書一覧が表示される THEN システムは「新規作成」ボタンを提供する SHALL
-5. WHEN ユーザーが「新規作成」を選択する THEN システムは文書名入力フィールドとプロンプト入力フィールドを表示する SHALL
-6. WHEN ユーザーが文書名とプロンプトを入力する THEN システムは入力内容をローカルに保存する SHALL
-7. WHEN 既存のオリジナル文書が選択される THEN システムは編集・削除オプションを提供する SHALL
-8. WHEN 「ストレージ確認」が選択される THEN システムは保存済みセッション一覧を表示する SHALL
+---
 
-### 要件3: 連続撮影機能
+## 3. 利用者 / 役割
 
-**ユーザーストーリー:** ユーザーとして、必要な枚数を連続して撮影したいので、シャッターを押すたびに画像が蓄積され、撮影完了は「AIでテキスト化」ボタンで決定する。
+- 一般ユーザー（医療従事者/患者）: 撮影→AI→編集→共有
+- システム管理者: Azure 側の構成・鍵管理・ログ監査
 
-#### 受入基準
+---
 
-1. WHEN ユーザーがシャッターを押す THEN システムは撮影画像を内部に蓄積する SHALL
-2. WHEN 画像が蓄積される THEN システムは撮影済み枚数を画面に表示する SHALL
-3. WHEN ユーザーが「AIでテキスト化」ボタンを押す THEN システムは撮影を完了し文書タイプ選択の円形メニューを表示する SHALL
-4. WHEN 撮影枚数が0枚の状態で「AIでテキスト化」が押される THEN システムは「写真を撮影してください」メッセージを表示する SHALL
-5. WHEN 複数枚撮影済みの場合 THEN システムは「○枚撮影済み」を表示する SHALL
+## 4. 前提・依存関係
 
-### 要件4: 円形文書タイプ選択とテキスト化開始
+- 端末カメラ権限の許諾
+- ネットワーク（Azure 連携時）
+- iOS 17 以上, Xcode 16 系
+- Azure Functions/Blob/Document Intelligence/OpenAI のサブスクリプション（本実装時）
 
-**ユーザーストーリー:** ユーザーとして、撮影完了後に文書の種類を素早く選択してテキスト化を開始したいので、円形に配置された文書タイプボタンから直感的に選択できる。
+---
 
-#### 受入基準
+## 5. 画面フロー / ナビゲーション
 
-1. WHEN 「AIでテキスト化」が選択される THEN システムは円形に配置された文書タイプボタンを表示する SHALL
-2. WHEN 円形メニューが表示される THEN システムは「紹介状」「お薬手帳」「一般テキスト」および保存済みオリジナル文書タイプのボタンを円形に配置する SHALL
-3. WHEN ユーザーが文書タイプを選択する THEN システムは該当タイプ専用のLLMプロンプトを準備して解析を開始する SHALL
-4. WHEN 文書タイプが選択される THEN システムは円形メニューを閉じてテキスト化ビューに遷移する SHALL
-5. WHEN テキスト化ビューに遷移する THEN システムはUIを解析結果表示画面に変更する SHALL
-6. WHEN オリジナル文書タイプが多数ある場合 THEN システムはスクロール可能な円形メニューを提供する SHALL
+1) 起動: `CameraView`
+   - カメラプレビュー / 撮影ガイド / 歯車 / AIでテキスト化
+2) 文書タイプ選択: `DocumentTypeMenu`
+   - 円形: 紹介状 / お薬手帳 / 一般テキスト
+   - 水平チップ: オリジナル文書（保存済み）
+3) 結果編集: `TextAnalysisView`
+   - 編集可能 / 取り直し / QR生成 / 保存
+4) 設定: `SettingsView`
+   - オリジナル文書編集（作成/一覧/削除）
+   - ストレージ確認（保存済みセッションの一覧）
 
-### 要件5: Azure Blob ストレージ連携
+---
 
-**ユーザーストーリー:** システム管理者として、撮影された画像を安全にクラウドストレージに保存したいので、Private EndpointとManaged Identityを使用したセキュアな保存が行われる。
+## 6. 機能要件（ユーザーストーリー / 受入基準）
 
-#### 受入基準
+### 要件1: カメラファースト起動
+- ユーザーストーリー: 起動直後に撮影を始めたい
+- 受入基準:
+  1) 起動時に `CameraView` を表示する
+  2) 撮影ガイド枠を表示する
+  3) 右上に設定（歯車）ボタンを表示する
+  4) シャッターで撮影できる
+  5) 「AIでテキスト化」ボタンを表示する
 
-1. WHEN 画像アップロードが開始される THEN システムはAzure FunctionsからSAS URLを取得する SHALL
-2. WHEN SAS URLを取得する THEN システムはコンテナ名とファイル名をパラメータとして送信する SHALL
-3. WHEN SAS URLが取得される THEN システムはPUTメソッドでraw/<docId>.jpgとして画像をアップロードする SHALL
-4. WHEN アップロードが完了する THEN システムは監査ログに「captured」「uploaded」イベントを記録する SHALL
-5. IF アップロードが失敗する THEN システムはローカルキューに退避し指数バックオフで再送する SHALL
+### 要件2: 設定画面
+- ユーザーストーリー: オリジナル文書管理と保存データ確認をしたい
+- 受入基準:
+  1) 歯車で設定画面を開ける（シート）
+  2) 「オリジナル文書編集」「ストレージ確認」を表示
+  3) オリジナル文書の作成/一覧/削除ができる
+  4) 保存済みセッション一覧を表示できる
 
-### 要件6: Azure AI解析とLLMプロンプト処理
+### 要件3: 連続撮影
+- ユーザーストーリー: 必要枚数を連続で撮って後から解析
+- 受入基準:
+  1) 撮影ごとに画像を蓄積
+  2) 画面に「n枚撮影済み」を表示
+  3) AIボタンでタイプ選択へ
+  4) 0枚時は警告
+  5) 複数枚でもカウント反映
 
-**ユーザーストーリー:** ユーザーとして、アップロードした医療文書からテキスト情報を自動抽出したいので、Azure DIとLLMを使用し、選択された文書タイプに応じた専用プロンプトでテキスト形式の解析結果が返される。
+### 要件4: 円形タイプ選択 → 解析開始
+- ユーザーストーリー: 素早くタイプを選び解析開始
+- 受入基準:
+  1) 円形メニューでタイプを表示
+  2) 紹介状/お薬手帳/一般テキスト + オリジナルを提供
+  3) 選択でタイプ別プロンプト準備→解析
+  4) メニューを閉じて結果画面へ遷移
 
-#### 受入基準
+### 要件5: Azure Blob 連携（本実装）
+- 受入基準（概要）:
+  1) SAS URL を Functions から取得
+  2) 画像を PUT アップロード（`raw/<docId>.jpg`）
+  3) 監査ログに `uploaded`
+  4) 失敗時はローカルキュー→指数バックオフ再送
 
-1. WHEN 画像アップロードが完了する THEN システムはAzure DI解析APIを呼び出す SHALL
-2. WHEN DI解析APIを呼び出す THEN システムはdocIdと選択された文書タイプをパラメータとして送信する SHALL
-3. WHEN DI解析が完了する THEN システムはOCRで抽出されたテキストを取得する SHALL
-4. WHEN 文書タイプが「紹介状」の場合 THEN システムは紹介状専用プロンプトとOCRテキストをLLM（Azure OpenAI）に送信する SHALL
-5. WHEN 文書タイプが「お薬手帳」の場合 THEN システムはお薬手帳専用プロンプトとOCRテキストをLLM（Azure OpenAI）に送信する SHALL
-6. WHEN 文書タイプが「一般テキスト」の場合 THEN システムは一般テキスト専用プロンプトとOCRテキストをLLM（Azure OpenAI）に送信する SHALL
-7. WHEN 文書タイプがオリジナルの場合 THEN システムはユーザー定義プロンプトとOCRテキストをLLM（Azure OpenAI）に送信する SHALL
-8. WHEN LLMから結果を受け取る THEN システムは構造化されたテキスト形式の解析結果を受け取る SHALL
-9. WHEN チェックボックスが検出される THEN LLMはチェックボックスの項目数をカウントして返す SHALL
-10. WHEN 解析が完了する THEN システムは監査ログに「analysis_done」イベントを記録する SHALL
+### 要件6: Azure 解析/LLM（本実装）
+- 受入基準（概要）:
+  1) DI に解析依頼→OCR テキスト取得
+  2) タイプ別プロンプトで Azure OpenAI へ
+  3) 構造化テキストを受領
+  4) 監査ログ `analysis_done`
 
-### 要件7: 解析結果表示と編集機能
+### 要件7: 結果編集
+- 受入基準:
+  1) 解析結果を編集可能に表示
+  2) 表/チェックボックスは簡易的に扱う（将来拡張）
+  3) 取り直しでカメラへ戻る
+  4) 複数枚の統合表示（MVP は結合テキスト）
+  5) QR生成ボタンを提供
 
-**ユーザーストーリー:** ユーザーとして、AI解析結果をテキスト形式で確認し、必要に応じて編集したいので、編集可能なテキスト表示と再解析オプションが提供される。
+### 要件8: QR生成 + 保存
+- 受入基準:
+  1) QRモーダルを表示
+  2) 編集済みテキストをQRエンコード
+  3) 画像保存オプション
+  4) セッション（画像・テキスト・タイプ・日時）をローカル保存
+  5) クラウド保存（本実装）
+  6) 監査ログ `session_saved`
 
-#### 受入基準
+### 要件9: ストレージ確認
+- 受入基準:
+  1) 保存済みセッション一覧を表示
+  2) 簡易検索/ソート（MVPは一覧/最新順）
+  3) 項目選択で内容参照（将来: 再編集）
 
-1. WHEN 結果画面が表示される THEN システムはAIから返されたテキスト解析結果を編集可能なテキストフィールドに表示する SHALL
-2. WHEN テキスト結果が表示される THEN システムは本文、表データ、チェックボックス項目数を区別して表示する SHALL
-3. WHEN ユーザーがテキストを編集する THEN システムはリアルタイムで変更を反映する SHALL
-4. WHEN 結果画面が表示される THEN システムは「取り直し」ボタンを提供する SHALL
-5. WHEN ユーザーが「取り直し」を選択する THEN システムはカメラ画面に戻る SHALL
-6. WHEN 複数枚の画像を解析した場合 THEN システムは各画像の解析結果を区別して編集可能にする SHALL
-7. WHEN ユーザーがテキスト内容を確認する THEN システムは「QR生成」ボタンを提供する SHALL
+### 要件10: IAP（将来）
+- 受入基準（概要）:
+  1) プラン: Light/Standard/Pro
+  2) 月次ページ数の制御と無料トライアル
 
-### 要件8: QRコード生成とクラウド・ローカル保存機能
+### 要件11: エラー/再送（本実装）
+- 受入基準（概要）:
+  1) 失敗はキュー退避→指数バックオフ
+  2) 24h 超過は通知/バッジ
 
-**ユーザーストーリー:** ユーザーとして、確認済みのテキスト情報をQRコードで共有し、そのセッションをクラウドとローカルの両方に保存したいので、QR生成と同時に自動保存される。
+### 要件12: プライバシー/セキュリティ
+- 受入基準（概要）:
+  1) App Privacy Manifest 準拠（匿名ID）
+  2) Private Endpoint / Managed Identity
+  3) カメラ/写真使用目的の明記
 
-#### 受入基準
+---
 
-1. WHEN ユーザーが「QR生成」ボタンを押す THEN システムはQRコードモーダルを表示する SHALL
-2. WHEN QRコードモーダルが表示される THEN システムは編集済みテキストをQRコードとして生成する SHALL
-3. WHEN QRコードが生成される THEN システムはユーザーが画像として保存できるオプションを提供する SHALL
-4. WHEN QRコードが生成される THEN システムは自動的にセッション情報（画像、テキスト、文書タイプ、作成日時）をローカルストレージに保存する SHALL
-5. WHEN ローカル保存が完了する THEN システムは同じセッション情報をクラウドストレージ（Azure Blob）にも保存する SHALL
-6. WHEN 複数枚の解析結果がある場合 THEN システムは統合されたテキストをQRコードにする SHALL
-7. WHEN セッション保存が完了する THEN システムは監査ログに「session_saved」イベントを記録する SHALL
+## 7. 非機能要件
 
-### 要件9: ストレージ確認機能
+- 性能: 起動→プレビュー表示 < 1.5s（スタブ時）。UI スレッドをブロックしない。
+- 安定性: 撮影/解析/保存でクラッシュがない。撮影は 5 回連続操作でも応答性が落ちない。
+- 可用性: オフライン時はローカルのみで動作（解析は不可/メッセージ）。
+- ログ: `Documents/KoEReqOCR/audit_log.jsonl` + DEBUG 時はコンソール `[Audit]` 出力。
+- セキュリティ: 機密設定は Info.plist / Keychain、通信は HTTPS。
+- メンテ: サービス層はプロトコルで抽象化、スタブ↔本実装差し替え可能。
 
-**ユーザーストーリー:** ユーザーとして、過去に保存したセッションを確認したいので、設定画面のストレージ確認から既存のセッション結果を検索・表示できる。
+---
 
-#### 受入基準
+## 8. アーキテクチャ / 実装マッピング
 
-1. WHEN 設定画面から「ストレージ確認」が選択される THEN システムは保存済みセッションのリストを表示する SHALL
-2. WHEN ストレージ確認画面が表示される THEN システムは検索バーを提供する SHALL
-3. WHEN ユーザーが検索バーにテキストを入力する THEN システムは該当するセッションをフィルタリングする SHALL
-4. WHEN ユーザーがセッション項目を選択する THEN システムは既存のセッション結果を読み込んでテキスト化ビューを表示する SHALL
-5. WHEN 過去のセッションが表示される THEN システムはテキスト編集とQR再生成を可能にする SHALL
-6. WHEN ストレージ確認画面が表示される THEN システムはローカルとクラウドの両方のデータを統合して表示する SHALL
+- App 入口: `App/KoEReqOCRApp.swift`（`NavigationStack { CameraView() } .environmentObject(SessionManager)`）
+- Features
+  - Camera: `Features/Camera/{CameraView.swift, CameraSession.swift}`
+  - DocumentType: `Features/DocumentType/DocumentTypeMenuView.swift`
+  - Result: `Features/Result/{TextAnalysisView.swift, QRCodeView.swift}`
+  - Settings: `Features/Settings/{SettingsView.swift, CustomPromptEditorView.swift, StorageBrowserView.swift}`
+- Core
+  - Business: `Core/Business/{SessionManager.swift, DocumentProcessor.swift, PromptManager.swift}`
+  - Services: `Core/Services/{Protocols.swift, AzureStubs.swift, AzureReal.swift, LocalStorageServiceImpl.swift}`
+  - Models: `Core/Models/Models.swift`
+  - Utils: `Core/Utils/AuditLogger.swift`
 
-### 要件10: IAPサブスクリプション管理
+---
 
-**ユーザーストーリー:** ユーザーとして、月次のOCR解析ページ数に応じたサブスクリプションプランを選択したいので、Light（100ページ）、Standard（300ページ）、Pro（1000ページ）の3つのプランから選択できる。
+## 9. データモデル（抜粋）
 
-#### 受入基準
+- `SessionData { id, images:[Data], originalText, editedText, documentType, customPromptUsed?, createdAt, qrCodeGenerated }`
+- `DocumentType: referralLetter/medicationNotebook/generalText/custom`
+- `CustomPrompt { id, name, prompt, createdAt }`
+- `OCRResult { textBlocks:[String], tables:[[[String]]], checkboxes:[{label,checked}] }`
 
-1. WHEN アプリが初回起動される THEN システムは7日間の無料トライアルを提供する SHALL
-2. WHEN ユーザーがOCR解析を実行する THEN システムは月次ページ数制限をチェックする SHALL
-3. WHEN 月次制限に達する THEN システムはアップグレードを促すメッセージを表示する SHALL
-4. WHEN ユーザーがサブスクリプションを購入する THEN システムは該当プランの月次制限を適用する SHALL
-5. WHEN 月が変わる THEN システムはページ数カウンターをリセットする SHALL
+---
 
-### 要件11: エラーハンドリングと再送機能
+## 10. サービス/API（本実装仕様）
 
-**ユーザーストーリー:** システム管理者として、ネットワーク障害や一時的なサービス停止に対して堅牢性を確保したいので、自動再送機能と適切なエラー通知が提供される。
+- Azure Functions（例）
+  - `POST /getSas` Request: `{ containerName, fileName }` → Response: `{ sasUrl }`
+  - `POST /di/analyze` Request: `{ imageUrls:[String], documentType }` → Response: `{ textBlocks:[String], tables, checkboxes }`
+  - `POST /openai/structure` Request: `{ ocrText, documentType, customPrompt? }` → Response: `{ text:String }`
+- 失敗時共通: `{ error:{ code, message } }`、HTTP 4xx/5xx
 
-#### 受入基準
+---
 
-1. WHEN 通信エラーが発生する THEN システムは処理をローカルキューに退避する SHALL
-2. WHEN ローカルキューに退避される THEN システムは指数バックオフアルゴリズムで再送を試行する SHALL
-3. WHEN 24時間を超えて再送が失敗する THEN システムはアプリバッジで未送信件数を表示する SHALL
-4. WHEN エラーが発生する THEN システムは監査ログに「error」イベントとエラー詳細を記録する SHALL
-5. WHEN ネットワークが復旧する THEN システムは自動的にキューの処理を再開する SHALL
+## 11. 設定/ビルド
 
-### 要件12: プライバシーとセキュリティ
+- Info.plist（UsageDescriptions）
+  - `NSCameraUsageDescription`: カメラで文書を撮影します。
+  - `NSPhotoLibraryAddUsageDescription`: 撮影画像の保存に使用します。
+- Azure（本実装）
+  - `AZURE_FUNCTIONS_BASE_URL`
+  - `AZURE_OPENAI_ENDPOINT`
+  - `AZURE_OPENAI_DEPLOYMENT`
+- Xcode 運用
+  - 追加は「Create groups（黄色）」で、Target Membership を必ず `KoEReqOCR` に
+  - Build Phases > Compile Sources 重複なし（@main は 1 つ）
+  - 実行スキーム: `ios/KoEReqOCR/Sources/KoEReqOCR/KoEReqOCR.xcodeproj` の `KoEReqOCR`
 
-**ユーザーストーリー:** ユーザーとして、個人の医療情報が適切に保護されることを期待するので、プライバシー準拠とセキュアなデータ処理が実装される。
+---
 
-#### 受入基準
+## 12. ロギング/監査
 
-1. WHEN アプリがユーザーデータを収集する THEN システムはApp Privacy Manifestに従って匿名化IDのみを使用する SHALL
-2. WHEN 画像データを処理する THEN システムはユーザーが明示的にアップロードした文書のみを対象とする SHALL
-3. WHEN データを保存する THEN システムはPrivate EndpointとManaged Identityを使用する SHALL
-4. WHEN アプリが起動する THEN システムはトラッキングを実行しない SHALL
-5. WHEN カメラや写真ライブラリにアクセスする THEN システムは適切な使用目的説明を表示する SHALL
-6. WHEN DB内のデータにアクセスする THEN システムは読み取り専用でアクセスし、変更は行わない SHALL
+- 形式: JSON Lines（`audit_log.jsonl`）
+- イベント: `appLaunch, cameraGranted, cameraDenied, capture, analyzeStart, analyzeSuccess, analyzeError, sessionSaved`
+- DEBUG 時はコンソールに `[Audit]` を出力
+
+---
+
+## 13. エラーハンドリング方針
+
+- カメラ権限拒否: アラート表示→設定誘導
+- 0枚で AI: 「写真を撮影してください」
+- 解析失敗: アラート（詳細メッセージ）+ 監査ログ `analyzeError`
+- アップロード失敗（本実装）: ローカルキュー→指数バックオフ再送
+
+---
+
+## 14. UI/UX 要件
+
+- 歯車（右上）常時表示
+- ガイド枠（コントラスト/視認性）
+- 撮影ボタン: タップ領域 44pt 以上
+- 文書タイプ円形: 3種 + オリジナル横スクロール
+- 結果画面: 編集テキスト + 取り直し + QR + 保存
+- 色弱/暗所でも見える配色（最小限）
+
+---
+
+## 15. テストと受入
+
+- 起動→カメラ→歯車表示
+- 連続撮影 1〜5回→枚数表示
+- 0枚 AI→警告
+- タイプ選択→AI→結果
+- 結果編集→QR→戻る
+- オリジナル文書 作成/一覧/削除
+- ストレージ確認で保存済み表示
+- 監査ログに主要イベントが出力
+
+---
+
+## 16. パフォーマンス/スレッド
+
+- カメラ開始はバックグラウンド / 構成は専用キュー
+- UI 更新（`@Published`）は MainActor（`SessionManager`）
+- `AVCapturePhotoOutput` は delegate を強参照保持、`capturePhoto` はメインで実行
+
+---
+
+## 17. リリース準備
+
+- プライバシー・マニフェスト: `PrivacyInfo.xcprivacy`
+- Info.plist 用途説明 OK
+- 実機デバッグ・リリースビルド検証
+
+---
+
+## 18. 将来拡張
+
+- 詳細な表/チェックボックス抽出とUI整形
+- 多言語対応、VoiceOver
+- IAP 課金の実装
+- クラウド履歴/検索
+
+---
+
+## 19. トレーサビリティ（要件→実装）
+
+- R1/R3/R4: `CameraView`, `DocumentTypeMenuView`, `SessionManager`, `CameraSession`
+- R2/R9: `SettingsView`, `CustomPromptEditorView`, `StorageBrowserView`, `LocalStorageServiceImpl`
+- R6/R7/R8: `DocumentProcessor`, `TextAnalysisView`, `QRCodeView`, `Azure*`, `Models`
+- ログ: `AuditLogger`
+
+---
+
+## 20. 付録
+
+- 既知の留意点
+  - Xcode のフォルダ参照（グレー）は Target Membership に入らないことがあるため、Create groups を使用
+  - `@main` は 1 つのみ
+  - デバッガ接続中の `Hang detected` ログは情報であり致命ではない
+
+- 参考ディレクトリ（主要）
+  - `ios/KoEReqOCR/Sources/KoEReqOCR/Features/Camera/CameraView.swift`
+  - `ios/KoEReqOCR/Sources/KoEReqOCR/Core/Business/SessionManager.swift`
+  - `ios/KoEReqOCR/Sources/KoEReqOCR/Core/Utils/AuditLogger.swift`
+  - `ios/KoEReqOCR/Sources/KoEReqOCR/Core/Services/{AzureStubs.swift, AzureReal.swift}`
+  - `ios/KoEReqOCR/Sources/KoEReqOCR/Core/Models/Models.swift`

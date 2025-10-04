@@ -4,34 +4,77 @@ struct TextAnalysisView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var sessionManager: SessionManager
 
-    @State var text: String
-    var documentType: DocumentType
-    var customPrompt: String?
+    @ObservedObject var viewModel: AnalysisViewModel
+    @State private var navigateToQR = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("解析結果（編集可）").font(.headline)
-            TextEditor(text: $text)
+            header
+            TextEditor(text: $viewModel.text)
                 .font(.body)
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.2)))
+                .disabled(viewModel.stage == .ocrRunning || viewModel.stage == .llmRunning)
             HStack {
-                Button("取り直し") { sessionManager.clear(); dismiss() }
+                Button("取り直し") {
+                    retakePhotos()
+                }
+                .foregroundColor(.red)
+
                 Spacer()
-                NavigationLink(destination: QRCodeView(text: text)) {
+
+                Button {
+                    navigateToQR = true
+                } label: {
                     Text("QR生成")
                 }
-                Button("保存") { saveAndClose() }
-                    .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
+                .disabled(viewModel.stage != .completed)
             }
         }
         .padding()
-        .navigationTitle(documentType.rawValue)
+        .navigationTitle(viewModel.type.rawValue)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $navigateToQR) {
+            QRCodeView(
+                text: viewModel.text,
+                documentType: viewModel.type,
+                customPrompt: viewModel.customPrompt,
+                images: viewModel.images
+            )
+        }
+        .onDisappear {
+            // QRコード画面に遷移した場合は何もしない
+            // カメラ画面に戻る場合のみクリア（戻るボタンor取り直し）
+            if !navigateToQR {
+                sessionManager.clear()
+            }
+        }
+        .task { await viewModel.start() }
     }
 
-    private func saveAndClose() {
-        sessionManager.saveSession(editedText: text, type: documentType, customPrompt: customPrompt)
-        AuditLogger.shared.log(.sessionSaved)
+    private var header: some View {
+        HStack(spacing: 8) {
+            switch viewModel.stage {
+            case .ocrRunning:
+                ProgressView().scaleEffect(0.9)
+                Text("OCR解析中…").foregroundColor(.secondary)
+            case .llmRunning:
+                ProgressView().scaleEffect(0.9)
+                Text("LLM処理中…").foregroundColor(.secondary)
+            case .completed:
+                Text("編集可能").foregroundColor(.secondary)
+            case .failed(let msg):
+                Image(systemName: "exclamationmark.triangle").foregroundColor(.orange)
+                Text("エラー: \(msg)").foregroundColor(.secondary)
+            case .idle:
+                EmptyView()
+            }
+            Spacer()
+        }
+    }
+
+    private func retakePhotos() {
+        sessionManager.clear()
         dismiss()
     }
 }
